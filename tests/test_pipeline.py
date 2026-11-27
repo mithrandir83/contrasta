@@ -1,4 +1,6 @@
+import io
 import json
+import wave
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -6,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pipeline
-from editorial import approve
+from editorial import approve, audio_excerpt
 
 
 class PipelineTests(unittest.TestCase):
@@ -42,6 +44,16 @@ class PipelineTests(unittest.TestCase):
 
 
 class ApprovalTests(unittest.TestCase):
+    def test_editorial_audio_is_a_seekable_clip(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'audio.wav'
+            with wave.open(str(path), 'wb') as output:
+                output.setparams((1, 2, 8000, 0, 'NONE', 'not compressed'))
+                output.writeframes(bytes(16000))
+            with wave.open(io.BytesIO(audio_excerpt(path, 0.2, 0.5)), 'rb') as clip:
+                self.assertEqual(clip.getnframes(), 2400)
+                self.assertEqual(len(clip.readframes(8000)), 4800)
+
     def test_approval_requires_confirmation_matching_turn_and_valid_sources(self):
         turn = dict(person='Persona de prueba', start=1, end=2, text='Texto sintético.')
         draft = dict(id='A1', person=turn['person'], start=1, end=2, claim='Prueba',

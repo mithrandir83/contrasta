@@ -2,10 +2,11 @@
 import argparse
 import hmac
 import hashlib
+import io
 import json
 import math
 import secrets
-import subprocess
+import wave
 from html import escape
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -52,6 +53,20 @@ def approve(draft, turn, form, people):
     return row
 
 
+def audio_excerpt(path, start, end):
+    excerpt = io.BytesIO()
+    with wave.open(str(path), 'rb') as source, wave.open(excerpt, 'wb') as output:
+        rate = source.getframerate()
+        first = round(start * rate)
+        last = min(source.getnframes(), round(end * rate))
+        if first >= last:
+            raise ValueError('Intervalo fuera del audio')
+        source.setpos(first)
+        output.setparams(source.getparams())
+        output.writeframes(source.readframes(last - first))
+    return excerpt.getvalue()
+
+
 def local_handler(port):
     token = secrets.token_urlsafe()
     allowed_host = f'127.0.0.1:{port}'
@@ -89,15 +104,12 @@ def local_handler(port):
                 if not math.isfinite(start) or not math.isfinite(end) or not 0 <= start < end or end - start > 300:
                     self.send_error(400, 'Intervalo no válido')
                     return
-                result = subprocess.run([
-                    'ffmpeg', '-nostdin', '-v', 'error', '-ss', str(start),
-                    '-i', str(WORK / 'debate.wav'), '-t', str(end - start),
-                    '-f', 'wav', 'pipe:1',
-                ], capture_output=True, timeout=30)
-                if result.returncode:
+                try:
+                    clip = audio_excerpt(WORK / 'debate.wav', start, end)
+                except (OSError, ValueError, EOFError, wave.Error):
                     self.send_error(404, 'Audio local no disponible')
                 else:
-                    self.send(result.stdout, content_type='audio/wav')
+                    self.send(clip, content_type='audio/wav')
                 return
             if url.path != '/':
                 self.send_error(404)
