@@ -1,0 +1,17 @@
+.venv/
+.env
+.env.*
+__pycache__/
+data/work/
+web/node_modules/
+web/dist/
+web/.astro/
+*.wav
+*.mp3
+*.mp4
+*.m4a
+*.mkv
+*.webm
+*.flac
+*.pyc
+.contrasta-transcribe-*/
